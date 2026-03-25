@@ -57,7 +57,29 @@ cmake --build build -j
 # Available cache types: turbo3 (3-bit, 4.9×), turbo4 (4-bit, 3.8×)
 ```
 
-## Compression Results
+## Benchmark Results (M5 Max 128GB)
+
+### Qwen 3.5 35B-A3B MoE (Q8_0)
+
+| Cache Type | Bits/val | Prompt tok/s | Gen tok/s | KV Compression |
+|------------|----------|-------------|-----------|----------------|
+| q8_0 (baseline) | 8.0 | **225.4** | **85.0** | 2.0× |
+| q4_0 | 4.0 | 221.5 | 84.5 | 4.0× |
+| turbo4 | 4.25 | 7.1 | 2.4 | 3.8× |
+| turbo3 | 3.25 | 4.2 | 2.4 | **4.9×** |
+
+### Qwopus v2 27B Dense (Q8_0)
+
+| Cache Type | Bits/val | Prompt tok/s | Gen tok/s | KV Compression |
+|------------|----------|-------------|-----------|----------------|
+| q8_0 (baseline) | 8.0 | **91.3** | **17.6** | 2.0× |
+| q4_0 | 4.0 | 90.8 | 17.6 | 4.0× |
+| turbo4 | 4.25 | 5.5 | 1.3 | 3.8× |
+| turbo3 | 3.25 | 5.3 | 1.3 | **4.9×** |
+
+> **Note**: Speed regression (13-35×) is from the unoptimized Metal shader — the dequantize kernel performs a full 128×128 rotation per chunk instead of once per block. Optimization tracked in [#23](https://github.com/TheTom/turboquant_plus/issues/23). Compression target met. Quality metrics (perplexity, NIAH) coming next.
+
+### Compression Quality (Python Prototype, Real Qwen3 KV Tensors)
 
 | Config | Compression | Cosine Sim | MSE |
 |--------|-------------|------------|-----|
@@ -67,6 +89,15 @@ cmake --build build -j
 | TurboQuant 3.5-bit (outlier) | **3.8×** | 0.95 | 0.0009 |
 | TurboQuant 4-bit | 3.8× | 0.96 | 0.0007 |
 
+### Key Validation
+
+Real Qwen3-1.7B KV tensor rotation Gaussianization:
+```
+Raw kurtosis:       900.4  → After rotation: 2.9  (Gaussian = 3.0)
+Std after rotation:  0.088388
+Expected (1/√d):     0.088388
+Ratio:               1.000 exactly
+```
 
 ## Architecture
 
@@ -115,16 +146,18 @@ benchmarks/
 
 ## Roadmap
 
-| Phase | Status |
-|-------|--------|
-| Core algorithms (NumPy) | ✅ Complete — 141 tests, 100% coverage |
-| Distortion validation | ✅ Complete — matches paper bounds |
-| Outlier channel strategy | ✅ Complete — 2.5-bit/3.5-bit rates |
-| Real model validation (Phase A) | ✅ Complete — rotation validated on Qwen3 |
-| llama.cpp C port (Phase B) | ✅ **Working** — Metal GPU inference |
-| Benchmarks | 🔄 In Progress |
-| Metal shader optimization | ⏳ Next |
-| MLX port | ⏳ Last |
+| Phase | Status | Details |
+|-------|--------|---------|
+| Core algorithms (NumPy) | ✅ | 141 tests, 100% coverage |
+| Distortion validation | ✅ | Matches paper bounds (Table 2) |
+| Outlier channel strategy | ✅ | 2.5-bit and 3.5-bit rates |
+| Real model validation | ✅ | Rotation validated on Qwen3 KV tensors (kurtosis 900→2.9) |
+| llama.cpp C port | ✅ | Metal GPU inference working on M5 Max |
+| Benchmarks (v1) | ✅ | MoE + Dense, 4 cache types each |
+| Metal shader optimization | 🔄 | Fix 13-35× speed regression ([#23](https://github.com/TheTom/turboquant_plus/issues/23)) |
+| Benchmark hardening | 🔄 | Perplexity, NIAH, multi-run ([#24](https://github.com/TheTom/turboquant_plus/issues/24)) |
+| TurboQuant+ extensions | ⏳ | Adaptive bits, temporal decay, MoE-aware compression |
+| MLX port | ⏳ | Last |
 
 ## Target Hardware
 
