@@ -23,17 +23,17 @@ Compresses transformer KV cache **up to 4.9×** using PolarQuant + QJL. Paper cl
 
 | Cache Type | Bits/val | Prompt tok/s | Gen tok/s | KV Compression | vs q8_0 |
 |------------|----------|-------------|-----------|----------------|---------|
-| q8_0 (baseline) | 8.0 | **222.8** | **85.5** | 2.0× | 1.00× |
-| turbo3 | 3.25 | 200.2 | **62.2** | **4.9×** | **0.73×** |
+| q8_0 (baseline) | 8.0 | 222.8 | 85.5 | 2.0× | 1.00× |
+| **turbo3** | **3.5** | **218.5** | **77.7** | **4.6×** | **0.91×** |
 
 ### Qwopus v2 27B Dense (Q8_0)
 
 | Cache Type | Bits/val | Prompt tok/s | Gen tok/s | KV Compression | vs q8_0 |
 |------------|----------|-------------|-----------|----------------|---------|
-| q8_0 (baseline) | 8.0 | **83.1** | **17.6** | 2.0× | 1.00× |
-| turbo3 | 3.25 | 83.1 | **15.5** | **4.9×** | **0.88×** |
+| q8_0 (baseline) | 8.0 | 83.1 | 17.6 | 2.0× | 1.00× |
+| **turbo3** | **3.5** | **89.5** | **17.0** | **4.6×** | **0.97×** |
 
-> **Speed**: turbo3 runs at **73-88% of q8_0 speed** with **4.9× KV cache compression** and **better quality** than the paper's two-stage approach (cosine sim 0.985 vs 0.958). The dense 27B model achieves **100% of q8_0 prompt speed** and 88% generation speed.
+> **Near-parity with q8_0.** turbo3 runs at **91-97% of q8_0 generation speed** with **4.6× KV cache compression**. The dense 27B model is **faster than q8_0 on prompt** (89.5 vs 83.1 tok/s) due to smaller cache reducing memory bandwidth.
 
 ### Compression Quality (Python Prototype)
 
@@ -205,7 +205,7 @@ benchmarks/
 | Real model validation | ✅ | Rotation validated on Qwen3 KV tensors (kurtosis 900→2.9) |
 | llama.cpp C port | ✅ | Metal GPU inference working on M5 Max |
 | Benchmarks (v1) | ✅ | MoE + Dense, 4 cache types each |
-| Metal shader optimization | ✅ | Pre-rotate-queries + MSE-only: 62.2 tok/s MoE (73%), 15.5 tok/s Qwopus (88%) |
+| Metal shader optimization | ✅ | Pre-rotate-Q + MSE-only + block 32: 77.7 tok/s MoE (91%), 17.0 Qwopus (97%) |
 | Benchmark hardening | 🔄 | Perplexity, NIAH, multi-run ([#24](https://github.com/TheTom/turboquant_plus/issues/24)) |
 | TurboQuant+ extensions | ⏳ | Adaptive bits, temporal decay, MoE-aware compression |
 | MLX port | ⏳ | Last |
