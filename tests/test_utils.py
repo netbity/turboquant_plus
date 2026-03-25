@@ -36,6 +36,16 @@ class TestBitPacking:
         packed = pack_indices(indices, 2)
         assert len(packed) < len(indices)  # should be compressed
 
+    def test_pack_indices_invalid_bit_width(self):
+        """Should raise ValueError for bit_width <= 0 or > 8."""
+        import pytest
+        from turboquant.utils import pack_indices
+
+        with pytest.raises(ValueError, match="bit_width must be 1-8"):
+            pack_indices(np.array([0, 1]), 0)
+        with pytest.raises(ValueError, match="bit_width must be 1-8"):
+            pack_indices(np.array([0, 1]), 9)
+
     def test_pack_indices_8bit(self):
         indices = np.array([0, 127, 255], dtype=np.uint8)
         packed = pack_indices(indices, 8)

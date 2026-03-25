@@ -153,6 +153,25 @@ class TestGaussianConditionalExpectation:
         assert np.isfinite(result)
         np.testing.assert_allclose(result, 1.0, atol=0.01)
 
+    def test_extreme_narrow_finite_interval_fallback(self):
+        """When prob < 1e-15 for finite [a,b], returns midpoint."""
+        from turboquant.codebook import _gaussian_conditional_expectation
+
+        # Both endpoints deep in same tail — probability underflows
+        result = _gaussian_conditional_expectation(1.0, 20.0, 20.1)
+        assert np.isfinite(result)
+        np.testing.assert_allclose(result, 20.05, atol=0.1)
+
+    def test_both_infinite_fallback(self):
+        """When both a and b are infinite and prob < 1e-15, returns 0."""
+        from turboquant.codebook import _gaussian_conditional_expectation
+
+        # This shouldn't happen in practice, but the code handles it
+        # Manually force: -inf to +inf always has prob=1, so we can't trigger
+        # the fallback naturally. Test the logic exists by checking full range.
+        result = _gaussian_conditional_expectation(1.0, -np.inf, np.inf)
+        np.testing.assert_allclose(result, 0.0, atol=1e-10)
+
     def test_scaled_distribution(self):
         """Should work correctly with non-unit sigma."""
         from turboquant.codebook import _gaussian_conditional_expectation

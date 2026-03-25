@@ -148,6 +148,22 @@ class TestTurboQuantMSE:
         assert mse < 0.1, f"MSE-only 3-bit MSE {mse:.4f} too high"
 
 
+class TestCompressedSizeBits:
+    """Test compressed_size_bits method."""
+
+    def test_size_calculation(self):
+        tq = TurboQuant(d=128, bit_width=3, seed=42)
+        bits = tq.compressed_size_bits(100)
+        # 100 vectors × (128 coords × 3 bits + 32 bits norm) = 100 × 416 = 41600
+        assert bits == 100 * (128 * 3 + 32)
+
+    def test_size_scales_with_vectors(self):
+        tq = TurboQuant(d=64, bit_width=4, seed=42)
+        bits_10 = tq.compressed_size_bits(10)
+        bits_100 = tq.compressed_size_bits(100)
+        assert bits_100 == bits_10 * 10
+
+
 class TestCompressionRatio:
     """Verify compression ratio calculations."""
 

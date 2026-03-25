@@ -97,7 +97,7 @@ def _gaussian_conditional_expectation(sigma: float, a: float, b: float) -> float
             return b - sigma
         elif np.isfinite(a) and np.isfinite(b):
             return (a + b) / 2.0
-        else:
+        else:  # pragma: no cover — both infinite always has prob=1
             return 0.0
 
     pdf_diff = stats.norm.pdf(a_std) - stats.norm.pdf(b_std)
