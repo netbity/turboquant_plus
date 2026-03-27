@@ -91,9 +91,10 @@ We tested 9 approaches total. The pattern is clear:
 | 2-pair half2 + ternary | 12.0 | 2 divergent | 4 | Branches hurt |
 | Select chain (zero LUT) | 11.9 | 0 | 8 | Branches kill |
 | Bit-arithmetic | 11.6 | 0 | 4+ | ALU too heavy |
-| Named-reg + ternary select | 10.3 | 4 uniform | 8 | Worst |
+| Named-reg + ternary select | 10.3 | 4 uniform | 8 | Worst — ternary kills |
 | Main (8-entry LUT) | 10.95 | 8 divergent | 0 | Baseline |
-| Non-vec FA (nl=2) | 10.2 | 8 divergent | 0 | Wrong kernel |
+| Inline block (FA inner loop) | 13.5 | 4 divergent | 0 | I-cache pressure |
+| Non-vec FA (nl=2) | 10.2 | 8 divergent | 0 | Wrong kernel for decode |
 
 **Any approach that replaces constant reads with branches loses on M2.** The Apple8 GPU's branch predictor/execution is worse than its constant cache. The 4-mag LUT succeeds because it reduces constant addresses (4 vs 8) WITHOUT adding branches.
 
