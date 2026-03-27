@@ -136,7 +136,29 @@ The benefit scales with context length because longer contexts have more positio
 
 Sparse V perplexity (6.176) is actually *lower* (better) than baseline turbo3 (6.211). The threshold is conservative enough that skipping negligible positions introduces no measurable quality degradation.
 
-### 4.4 NIAH Retrieval
+### 4.4 KL Divergence vs f16
+
+To measure distributional shift (not just top-token accuracy), we compute KL divergence against f16 KV cache logits on both MoE and dense models:
+
+**MoE (Qwen3.5-35B-A3B):**
+
+| Cache Type | Mean KLD | Δp RMS | Same top-p % |
+|------------|----------|--------|-------------|
+| q8\_0 | 0.001549 | 1.23% | 98.43% |
+| q4\_0 | 0.008091 | 2.75% | 95.83% |
+| turbo3 | 0.016145 | 4.09% | 94.31% |
+
+**Dense (Qwen3.5-27B):**
+
+| Cache Type | Mean KLD | Δp RMS | Same top-p % |
+|------------|----------|--------|-------------|
+| q8\_0 | 0.000018 | 0.13% | 99.90% |
+| q4\_0 | 0.002741 | 1.44% | 97.65% |
+| turbo3 | 0.009900 | 2.74% | 95.98% |
+
+turbo3 KLD is roughly 2× q4\_0 on both architectures, which is expected given turbo3 uses fewer bits (3.5 vs 4.0) with a different compression mechanism. The same-top-p metric shows turbo3 agrees with f16 on the top token 94–96% of the time. Dense models show lower KLD across all cache types because attention patterns are more concentrated.
+
+### 4.5 NIAH Retrieval
 
 | Test | q8\_0 | turbo3 | turbo3 + sparse V |
 |------|-------|--------|-------------------|
@@ -145,11 +167,11 @@ Sparse V perplexity (6.176) is actually *lower* (better) than baseline turbo3 (6
 
 Sparse V achieves **perfect** single-needle retrieval (9/9), improving from 7/9 without sparse V. This is counterintuitive but explainable: needle positions always have meaningful attention weights (well above $10^{-6}$) and are never skipped. The improvement suggests that dequantizing low-weight positions is not merely slow; it actively pollutes the attention accumulation with quantization artifacts. Each negligible-weight position contributes near-zero useful signal but non-zero quantization noise to the output, effectively degrading the accumulated value. Sparse V removes these contributions entirely, improving the signal-to-noise ratio of the attention output and producing a cleaner accumulated value. This is a second, independent contribution: sparse V is not just a speed optimization, it is also a quality optimization for quantized KV caches.
 
-### 4.5 Prefill Impact
+### 4.6 Prefill Impact
 
 Sparse V has minimal effect on prefill because prefill processes the entire prompt in parallel (no autoregressive attention weight computation). Measured prefill at 4K: 2429 tok/s with sparse V vs 2362 baseline (+2.8%).
 
-### 4.6 Real-World Server Benchmark
+### 4.7 Real-World Server Benchmark
 
 The decode numbers in Section 4.2 are from `llama-bench` batch evaluation, which keeps the GPU maximally saturated. To validate under realistic conditions, we tested with `llama-server` processing a 70-page PDF (~24K prompt tokens) via the OpenAI-compatible chat completions API:
 
@@ -162,7 +184,7 @@ The gap between `llama-bench` and `llama-server` results reflects system-level o
 
 **Takeaway:** Users should expect ~78% of q8\_0 decode speed at long context in real server deployments, not the ~93% measured in synthetic benchmarks. The sparse V improvement still holds; without it, decode performance would be closer to ~60% of q8\_0.
 
-### 4.7 Threshold Ablation
+### 4.8 Threshold Ablation
 
 We swept the threshold $\tau$ across five values to determine sensitivity:
 
@@ -297,7 +319,7 @@ Raw logs: [`threshold-ablation-logs/dense_27b_sparse_v_clean_m5.txt`](../thresho
 ## 8. Limitations and Future Work
 
 **Limitations:**
-- We perform a threshold ablation in Section 4.7 and find the method is insensitive to $\tau$ across $10^{-4}$ to $10^{-8}$. Perplexity is identical at all values.
+- We perform a threshold ablation in Section 4.8 and find the method is insensitive to $\tau$ across $10^{-4}$ to $10^{-8}$. Perplexity is identical at all values.
 - Short context benefit is modest (+1.4%) because attention is less sparse.
 
 **Future work:**
