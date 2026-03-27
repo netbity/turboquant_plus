@@ -58,6 +58,7 @@ Compresses transformer KV cache **4.6x** using PolarQuant + Walsh-Hadamard rotat
 | 4K | 74.9 | — | — |
 | 8K | 71.7 | — | — |
 | 16K | 66.5 | 72.0 | 0.92x |
+| 24K (70-page PDF) | 53.3 | 68.2 | 0.78x |
 | 32K | 57.7 | 62.0 | **0.93x** |
 
 **Sparse V dequant** skips V dequantization for positions where softmax attention weight < 1e-6. At long context, 90%+ of attention weights are negligible — this saves ~half the total dequant cost. **+22.8% decode at 32K** vs previous turbo3, pushing the ratio from 0.76x to 0.93x. Zero quality loss (PPL 6.176 vs 6.211 without sparse V). Benefit scales with context length — the longer the context, the bigger the win.
