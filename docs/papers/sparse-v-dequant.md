@@ -156,7 +156,7 @@ To measure distributional shift (not just top-token accuracy), we compute KL div
 | q4\_0 | 0.002741 | 1.44% | 97.65% |
 | turbo3 | 0.009900 | 2.74% | 95.98% |
 
-turbo3 KLD is roughly 2× q4\_0 on both architectures, which is expected given turbo3 uses fewer bits (3.5 vs 4.0) with a different compression mechanism. The same-top-p metric shows turbo3 agrees with f16 on the top token 94–96% of the time. Dense models show lower KLD across all cache types because attention patterns are more concentrated.
+turbo3 KLD is higher than q4\_0 on both architectures, consistent with its lower effective bit rate (3.5 vs 4.0). The same-top-p metric shows turbo3 agrees with f16 on the top token 94–96% of the time. Dense models show lower KLD across all cache types because attention patterns are more concentrated.
 
 ### 4.5 NIAH Retrieval
 
