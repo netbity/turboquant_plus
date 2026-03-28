@@ -71,10 +71,30 @@ turbo4:
 
 Score: 7/9
 
+NIAH v2 (expanded: 11 depths × 3 contexts = 33 tests):
+
+| Depth  | 4K   | 8K   | 16K  |
+|--------|------|------|------|
+| 0   %  | FAIL | PASS | PASS |
+| 10  %  | PASS | PASS | PASS |
+| 20  %  | PASS | PASS | PASS |
+| 30  %  | PASS | PASS | PASS |
+| 40  %  | PASS | PASS | PASS |
+| 50  %  | PASS | PASS | PASS |
+| 60  %  | PASS | PASS | PASS |
+| 70  %  | PASS | PASS | PASS |
+| 80  %  | PASS | PASS | PASS |
+| 90  %  | PASS | PASS | PASS |
+| 100 %  | PASS | FAIL | PASS |
+
+Score: 31/33 (93.9%)
+Consistent failures at 4K/0% and 8K/100% (same in both runs).
+Edge cases: very start and very end of context.
+
 Reference:
-  q8_0: 7/9 (same score)
-  turbo3 + sparse V: 9/9
-  turbo3 (no sparse V): 7/9
+  q8_0: 7/9 (3-position sweep)
+  turbo3 + sparse V: 9/9 (3-position sweep)
+  turbo3 (no sparse V): 7/9 (3-position sweep)
 
 === 70-PAGE PDF SERVER BENCHMARK (~24K context) ===
 
