@@ -581,6 +581,22 @@ The slight regression is likely from increased instruction footprint — duplica
 
 **Risk:** Low effort, medium payoff. The gains from 4-mag vs 8-LUT switching were small on M5 (+2.4% at one depth). On M2 where the gap is larger, the payoff might be bigger.
 
+**Result: NEGATIVE on 1.5B.** turbo3/turbo4 decode is completely flat across all context depths (~52/~59 t/s). q8_0 gets faster at long context (48 → 109 t/s) because attention becomes a larger fraction of decode. No crossover point to dispatch on.
+
+| Config | short | 2K | 4K | 8K | 16K |
+|--------|-------|-----|-----|------|------|
+| f16 (ceiling) | 119.60 | — | — | 116.22 | 116.14 |
+| q8_0 | ~48 | 64 | ~82 | 107 | 109 |
+| turbo4 | 59.29 | 59.02 | 59.00 | 60.65 | 59.03 |
+| turbo3 (4-mag) | 52.20 | 51.94 | 52.36 | 51.79 | 51.86 |
+| turbo3 (zero dequant) | 55.68 | 55.87 | 55.83 | 55.42 | 55.69 |
+
+Additional findings:
+- Zero-dequant gap is only 7% on 1.5B — FFN matmuls dominate, not dequant
+- Asymmetric K/V (mixed types) not supported — no mixed-type kernel templates
+- turbo2 not registered in this build — needs update
+- Needs retesting on larger model (7B+) where attention is a bigger fraction of decode
+
 ---
 
 ### Priority order for Phase 2
