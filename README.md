@@ -162,6 +162,27 @@ Tested by @mariotomich. Model: Qwen3.5-35B-A3B Q8_0, Sparse V ON. Real prompt: 3
 
 **turbo4 decode beats q8_0 by +33.9% at long context on M1 Max.** At 38K tokens, KV bandwidth savings outweigh dequant cost. Sparse V amplifies the gain. turbo3 decode regression (-37.9%) is the known M1 L2 cache wall — turbo3 dequant complexity causes cache eviction on pre-M5 hardware.
 
+**Asymmetric q8_0-K + turbo4-V (recommended for pre-M5):**
+
+Synthetic (llama-bench):
+
+| KV | pp512 t/s | tg128 t/s | pp65536+tg128 t/s |
+|----|-----------|-----------|-------------------|
+| q8_0 | 876.1 | 39.55 | 275.0 |
+| q8_0-K + turbo4-V | 894.9 (+2.2%) | 38.64 (-2.3%) | 271.0 (-1.5%) |
+
+Asymmetric avoids the turbo3 decode regression (-37.9%) on pre-M5 hardware.
+
+KV cache memory at 262K context:
+
+| KV | Cache MiB | Saved | Compression |
+|----|-----------|-------|-------------|
+| q8_0 | 2782 | — | baseline |
+| turbo4 | 1422 | 1360 MiB | 1.96x |
+| q8_0-K + turbo4-V | 2102 | 680 MiB | 1.32x |
+
+PPL on real document (70-pages.md, ctx=512, 20 chunks): q8_0 16.29, turbo4 16.44 (+0.93%), turbo3 16.42 (+0.76%), turbo2 17.22 (+5.69%).
+
 ### Speed Optimization Journey
 
 | Optimization | Prefill tok/s | vs q8_0 |
