@@ -71,6 +71,28 @@ TurboQuant supports independent K and V cache types. In current testing, keeping
 llama-server -m model-Q4_K_M.gguf -ctk q8_0 -ctv turbo4 -fa 1
 ```
 
+### Boundary V (Layer-Aware V Compression)
+
+Not all V layers need the same precision. Boundary V protects the first 2 + last 2 layers with q8_0-V while compressing all remaining layers with turbo2-V. 15 lines of code, no speed penalty.
+
+| Model | turbo2 PPL | Boundary V PPL | turbo3 PPL | Quality recovered |
+|-------|-----------|---------------|-----------|-------------------|
+| phi-4-Q8_0 (40L) | 4.835 | 4.784 | 4.742 | 55% |
+| Qwen2.5-7B Q4_K_M (28L) | 6.911 | 6.835 | 6.707 | 37% |
+| Qwen3.5-35B MoE (64L) | 5.257 | 5.148 | 5.137 | 91% |
+| Qwen3.5-27B Dense (36L) | 6.534 | 6.423 | 6.273 | 42% |
+
+Validated at 512 and 8K context. NIAH retrieval passed. Benefit scales with model depth (91% on 64-layer MoE). Independently validated by @Corianas_ on NanoGPT.
+
+**Enabled by default.** Activate manually on older builds with `TURBO_LAYER_ADAPTIVE=7` env var.
+
+```bash
+# Boundary V — boundary layers q8_0-V, rest turbo2-V
+llama-server -m model.gguf -ctk q8_0 -ctv turbo2 -fa 1
+```
+
+See [full paper](docs/papers/layer-aware-v-compression.md).
+
 ### Prefill Context Scaling (Verified 2K-32K)
 
 | Context | turbo4 tok/s | turbo3 tok/s | q8_0 tok/s | turbo4/q8_0 | turbo3/q8_0 |
@@ -397,57 +419,76 @@ Input: KV cache vector x ∈ R^d (one attention head)
     │
     ├── Extract norm: γ = ||x||, x̂ = x/γ
     │
-    ├── Stage 1: PolarQuant (b-1 bits)
-    │   Random rotation Π → coordinates ~ N(0, 1/d)
-    │   → optimal scalar quantization per coordinate
+    ├── Random rotation: WHT + random sign flips
+    │   coordinates ~ N(0, 1/d) after rotation
     │
-    ├── Stage 2: QJL (1 bit)
-    │   sign(S · residual) → unbiased inner product correction
+    ├── Optimal scalar quantization (Lloyd-Max)
+    │   turbo4: 16 centroids (4-bit), turbo3: 8 centroids (3-bit), turbo2: 4 centroids (2-bit)
     │
-    └── Output: CompressedVector(indices, signs, norms)
-        Total: b bits per coordinate
+    └── Output: quantized indices + norm per block
+        Compression: 3.8x (turbo4), 5.1x (turbo3), 7.5x (turbo2)
 ```
+
+> **Note on QJL:** The original paper uses a 1-bit QJL error correction step. We dropped it — QJL increases variance which softmax amplifies, hurting quality. More centroids (PolarQuant-only) beats MSE + QJL split. Confirmed independently by 5 groups.
 
 ## Project Structure
 
 ```
 turboquant/
-├── rotation.py      # Random rotation matrices (dense QR + fast Walsh-Hadamard)
-├── codebook.py      # Optimal centroid computation (closed-form + Lloyd's)
-├── polar_quant.py   # PolarQuant (Algorithm 1) — with norm extraction
-├── qjl.py           # QJL 1-bit quantizer
-├── turboquant.py    # Full TurboQuant (Algorithm 2)
-├── kv_cache.py      # KV cache integration layer
-├── outlier.py       # Outlier channel strategy (2.5-bit, 3.5-bit)
-└── utils.py         # Bit packing, memory measurement
+├── rotation.py        # Walsh-Hadamard Transform + random sign flips
+├── codebook.py        # Lloyd-Max optimal centroid computation
+├── polar_quant.py     # PolarQuant — norm extraction + WHT rotation + scalar quantization
+├── qjl.py            # QJL 1-bit quantizer (kept for reference, not used in production)
+├── turboquant.py      # Full TurboQuant pipeline
+├── kv_cache.py        # KV cache integration layer
+├── outlier.py         # Outlier channel strategy (2.5-bit, 3.5-bit)
+├── lloyd_max.py       # Lloyd-Max quantizer implementation
+├── utils.py           # Bit packing, memory measurement
+├── isoquant.py        # IsoQuant (quaternion SO(4)) experimental comparison
+└── rotorquant.py      # RotorQuant experimental comparison
 
-tests/               # 141 tests, 100% coverage on core modules
+tests/                 # 14 test files, 500+ tests
 benchmarks/
-├── demo.py                    # Quick compression demo
-├── run_benchmark.py           # Server-based benchmark runner
-├── benchmark_results.md       # Full benchmark report
-├── test_with_llama.py         # Integration test at Qwen 3.5 dimensions
-├── test_outlier_comparison.py # Outlier strategy comparison
-└── validate_real_model.py     # Real model KV tensor validation
+├── demo.py                       # Quick compression demo
+├── run_benchmark.py              # Server-based benchmark runner
+├── benchmark_results.md          # Full benchmark report
+├── benchmark_llama.sh            # llama.cpp benchmark script
+├── benchmark_norm_correction.py  # Norm correction validation
+├── benchmark_ppl_tq_vs_rq.py    # TurboQuant vs RotorQuant PPL comparison
+├── temporal_decay_prototype.py   # Temporal decay experiment
+├── test_with_llama.py            # Integration test at Qwen 3.5 dimensions
+├── test_outlier_comparison.py    # Outlier strategy comparison
+└── validate_real_model.py        # Real model KV tensor validation
+
+docs/
+├── turboquant-recommendations.md # Configuration guide (tested matrix)
+├── windows-rdna4-setup.md        # Windows + AMD RDNA 4 build guide
+├── papers/
+│   ├── turbo4-resurrection.md    # turbo4 bug hunt (PPL 679 → 6.125)
+│   ├── sparse-v-dequant.md       # Sparse V attention-gated optimization
+│   ├── layer-aware-v-compression.md  # Boundary V (layer-adaptive V precision)
+│   └── block-size-experiment.md  # Block size 32→128 (12% compression win)
+└── (25+ engineering docs, investigations, experiment logs)
 ```
 
 ## Roadmap
 
 | Phase | Status | Details |
 |-------|--------|---------|
-| Core algorithms (NumPy) | ✅ | 141 tests, 100% coverage |
+| Core algorithms (NumPy) | ✅ | 500+ tests across 14 test files |
 | Distortion validation | ✅ | Matches paper bounds (Table 2) |
-| Outlier channel strategy | ✅ | 2.5-bit and 3.5-bit rates |
 | Real model validation | ✅ | Rotation validated on Qwen3 KV tensors (kurtosis 900→2.9) |
-| llama.cpp C port | ✅ | Metal GPU inference working on M5 Max |
-| Benchmarks (v1) | ✅ | MoE + Dense, 4 cache types each |
-| Quality validation | ✅ | PPL 5.460 (+0.8% of q8_0) — perplexity target met |
-| Metal shader optimization | ✅ | **q8_0 speed parity**: 2747 tok/s (1.02x q8_0) via graph WHT + block-32 |
-| Benchmark hardening | 🔄 | Perplexity done, NIAH + multi-run pending ([#24](https://github.com/TheTom/turboquant_plus/issues/24)) |
+| llama.cpp C port | ✅ | Metal GPU inference working on M1 through M5 |
+| Metal shader optimization | ✅ | **q8_0 speed parity**: prefill matches or beats q8_0 |
+| CUDA backend | ✅ | Community-tested on RTX 3080 Ti/3090/4090/5090, DGX Spark Blackwell |
+| HIP/AMD backend | ✅ | RX 9070 XT (RDNA 4) validated, gfx1201 native |
+| Asymmetric K/V | ✅ | q8_0-K + turbo-V rescues Q4_K_M models |
+| Boundary V | ✅ | Layer-aware V compression, 37-91% quality recovery |
+| Sparse V | ✅ | Attention-gated dequant skip, +22.8% decode on MoE. [Upstream PR #21119](https://github.com/ggml-org/llama.cpp/pull/21119) |
+| Block size optimization | ✅ | 32→128, 12% better compression, zero quality cost |
 | Upstream coordination | 🔄 | llama.cpp PR preparation ([#27](https://github.com/TheTom/turboquant_plus/issues/27)) |
 | TurboQuant+ extensions | ⏳ | Adaptive bits, temporal decay, MoE-aware compression |
-| CUDA backend | ⏳ | Port Metal kernels to CUDA for NVIDIA |
-| MLX port | ⏳ | Last |
+| MLX port | ⏳ | Community efforts underway (@ekryski MLX-Swift) |
 
 ## Paper Reference
 
@@ -471,10 +512,11 @@ Detailed debugging logs, gotchas, and benchmarks from the llama.cpp port:
 
 Issues and PRs welcome. The main areas where help is needed:
 
-1. **CUDA backend** — port the Metal kernels to CUDA for NVIDIA GPU support
-2. **Upstream PR** — prepare llama.cpp contribution (CONTRIBUTING.md requirements)
-3. **turbo4 CUDA port** — turbo4 4-bit PolarQuant validated on Metal, needs CUDA port (see [issue #17](https://github.com/TheTom/llama-cpp-turboquant/issues/17))
-4. **Quality metrics** — multi-run statistics, additional task benchmarks
+1. **Upstream PR** — prepare llama.cpp contribution (CONTRIBUTING.md requirements)
+2. **CUDA kernel optimization** — fused FA kernels, decode speed parity
+3. **MLX port** — Apple MLX framework support
+4. **Quality metrics** — multi-run statistics, additional task benchmarks (GSM8K, code gen, reasoning)
+5. **Long context validation** — 64K+ testing across architectures
 
 ## Support
 
