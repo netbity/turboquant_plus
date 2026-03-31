@@ -373,6 +373,12 @@ The boundary layer sensitivity finding has been independently confirmed:
 
 ---
 
+## Exploratory Findings (2026-03-31)
+
+A follow-up investigation tested `q8_0-K + turbo2-V` with Boundary V (auto-enabled) specifically on Qwen3.5-35B MoE Q8_0 at extended context lengths (512c, 8K, 32K). On this tested setup, turbo2+BV achieved 7.53x V compression with PPL within 1% of q8_0 — matching or slightly exceeding `q8_0/turbo3` quality. See [MoE V-compression frontier](moe-v-compression-frontier.md) for the full writeup.
+
+---
+
 ## Files Changed
 
 - `src/llama-kv-cache.cpp` — added modes 5, 6, 7 to `TURBO_LAYER_ADAPTIVE` env var (15 lines)

@@ -61,7 +61,9 @@ Validated across 4 models on Metal. Consistently recovers 37-91% of the turbo2-t
 
 Validated at 512 and 8K context. NIAH retrieval passed. No speed penalty. Independently validated by @Corianas_ on NanoGPT.
 
-See [Layer-Aware V Compression](papers/layer-aware-v-compression.md) for the full writeup.
+**Exploratory Findings (2026-03-31):** Extended validation on Qwen3.5-35B MoE Q8_0 with `q8_0-K + turbo2-V` (Boundary V auto-enabled) at 512c, 8K, and 32K context. PPL matched or beat `q8_0/turbo3` at every tested length. At 32K decode on M5 Max, turbo2+BV was ~2-3% faster than turbo3-V (n=2 runs). This makes `q8_0/turbo2` the best tested MoE long-context V config on this model. See [MoE V-compression frontier](papers/moe-v-compression-frontier.md).
+
+See [Layer-Aware V Compression](papers/layer-aware-v-compression.md) for the original Boundary V writeup.
 
 ## Recommended Starting Points
 
@@ -73,8 +75,11 @@ See [Layer-Aware V Compression](papers/layer-aware-v-compression.md) for the ful
 | Q4_K_M, validated large model (24B+) | `-ctk turbo3 -ctv turbo3` | If you've confirmed PPL is healthy |
 | Q4_K_M, 70B+ | `-ctk turbo4 -ctv turbo4` | +6.3% on 70B, +1.9% on 104B. Symmetric works on large Llama/Cohere |
 | Maximum V compression | `-ctk q8_0 -ctv turbo2` | +5-9.5% PPL, Boundary V auto-enabled |
+| MoE long-context V compression | `-ctk q8_0 -ctv turbo2` | Tested on Qwen3.5-35B MoE: 7.53x V, PPL within 1%, 32K decode ~2-3% faster than turbo3-V |
 
 **Important framing:** Asymmetric q8_0-K + turbo-V is a **quality/robustness rescue**, not a speed optimization. You trade some decode throughput (K is uncompressed) for quality safety on sensitive models. If your model works fine with symmetric turbo, use symmetric.
+
+**MoE exception:** On the tested Qwen3.5-35B MoE Q8_0 setup, `q8_0/turbo2` with Boundary V (auto-enabled) is the best tested long-context V config: 7.53x V compression, PPL within 1% of q8_0 at 512c/8K/32K, quality matching or exceeding `q8_0/turbo3`, and 32K decode ~2-3% faster than turbo3-V (n=2 runs, M5 Max). This is a scoped result for this tested setup. See [MoE V-compression frontier](papers/moe-v-compression-frontier.md).
 
 ## Why K Precision Matters More Than V
 
