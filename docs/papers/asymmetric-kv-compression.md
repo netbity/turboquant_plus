@@ -215,6 +215,7 @@ These findings have been independently confirmed by multiple researchers:
 - fp16-K + 2bit-V: 1.000 cosine similarity, 100% top-1 match
 - All degradation from K compression, V has zero effect
 - Boundary layer gap scales with K compression (-0.001 at 4-bit K, -0.010 at 2-bit K)
+- [Layer 0 K isolation test](https://github.com/ggml-org/llama.cpp/discussions/20969#discussioncomment-16402887): protecting boundary K layers (fp16) did NOT reduce the gap — gap grew more negative, meaning boundary layers already compress *better* than middle layers. Mechanistic explanation: extreme K norms (146.8 at layer 0) produce tightly Gaussian distributions after normalization, which are ideal for Lloyd-Max codebooks. Middle layers (K norm 20–40) have more variable distributions and compress slightly less accurately. Confirms uniform K compression is stable — no per-layer K precision tuning needed
 
 **@HyperionMS2040** — 10-model CUDA sweep, RTX 3090 (2026-03-30):
 - Qwen2.5-7B symmetric turbo3: catastrophic (PPL 3,472). Llama 3.1 8B symmetric turbo3: +6.4%
@@ -235,6 +236,24 @@ These findings have been independently confirmed by multiple researchers:
 **@stragulus** — Vulkan, AMD Radeon 7900 XTX (2026-03-31):
 - Independent confirmation on jesusmb1995's Vulkan branch: q8_0-K + pq3_0-V = PPL 6.9226 (+0.37%), f16-K + pq4_0-V = PPL 6.8837 (-0.19%)
 - V compression free on fifth hardware/backend combination (Vulkan + AMD discrete)
+
+**@sztlink (Felipe Sztutman)** — [Qwen3-30B-A3B Q4_K_M, RTX 4090, AmesianX v1.2.0](https://github.com/ggml-org/llama.cpp/discussions/20969#discussioncomment-16403244) (2026-04-01):
+- Production PPL validation (wikitext-2-raw, ctx=512, 20 chunks). First SM89 (Ada) data for this model
+- q8_0/tbq3 (asymmetric): PPL 7.5910 (+0.57% vs f16 7.5477) — tightest asymmetric result to date, confirms "V is free" on MoE
+- tbq3/tbq3 (symmetric): PPL 9.5221 (+26.16%) — catastrophic. Extends Qwen symmetric sensitivity from Qwen2.5 dense to **Qwen3 MoE**
+- tbq4/tbq4 (symmetric): PPL 7.9950 (+5.93%) — healthy, matching q4_0. Confirms turbo4-K catastrophic failure (zekrom-vale) is IQ4_XS-specific, not a universal turbo4 bug
+- Adds Qwen3 MoE to Section 4 sensitivity table: Qwen family is sensitive across architectures (dense and MoE), not just Qwen2.5
+
+**@Madreag** — [Optimized CUDA fork](https://github.com/Madreag/turbo3-cuda/tree/release/cuda-optimized), 4 GPUs (SM86x2/SM89/SM120), 1,351+ iterations (2026-04-01):
+- Full asymmetric K/V PPL matrix (ctx=512, Qwen3.5-27B Q6_K): **V type dominates PPL** (columns vary more than rows). K=turbo3/V=turbo3 (6.7251) approximately equals K=q8_0/V=turbo3 (6.6885). Independent CUDA confirmation that K precision matters less than V precision for quality, and that asymmetric is not needed on Q6_K+ weights
+- [Detailed results](https://github.com/ggml-org/llama.cpp/discussions/20969#discussioncomment-16404751) with KL divergence, NIAH, and speed across 4 GPUs and 3 architecture generations
+
+**@mudler (Ettore Di Giacinto)** — [APEX launch](https://github.com/mudler/apex-quant), [LocalAI](https://github.com/mudler/LocalAI) (44.7k stars) (2026-04-01):
+- Released APEX (Adaptive Precision for EXpert Models), a MoE-aware mixed-precision weight quantization method for Qwen3.5-35B-A3B
+- Explicitly recommends pairing APEX with TurboQuant KV cache compression in the [launch announcement](https://huggingface.co/mudler/Qwen3.5-35B-A3B-APEX-GGUF). First major open source project to officially integrate TurboQuant into their recommended stack
+- APEX + TurboQuant at 8K context: +14% prompt processing speedup across all APEX tiers, zero quality loss, 4.6x KV cache compression
+- APEX Mini (12.2 GB) + TurboQuant = 35B MoE at 8K context on a 16GB consumer GPU
+- Independently confirms boundary layer sensitivity for weights: "first and last 5 transformer layers are 10x more sensitive than the middle," consistent with our Boundary V finding for KV cache
 
 ---
 

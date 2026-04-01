@@ -213,7 +213,30 @@ Not validated:
 
 ---
 
-## 7. Open Questions
+## 7. Independent Validation
+
+**@sztlink (Felipe Sztutman)** — [Qwen3-30B-A3B Q4_K_M, RTX 4090, AmesianX v1.2.0](https://github.com/ggml-org/llama.cpp/discussions/20969#discussioncomment-16403244) (2026-04-01):
+- First independent PPL validation of the MoE V-compression finding on CUDA hardware (our results were Metal-only)
+- q8_0/tbq3 (asymmetric): PPL 7.5910 (+0.57% vs f16 7.5477) — confirms V compression is nearly free on MoE, consistent with our +0.8-1.0% on Qwen3.5-35B-A3B
+- Symmetric tbq3/tbq3: PPL 9.5221 (+26.16%) — catastrophic. Validates asymmetric as the only safe path on Qwen MoE
+- Different model (Qwen3-30B-A3B vs our Qwen3.5-35B-A3B), different hardware (RTX 4090 vs M5 Max), different implementation (AmesianX v1.2.0 vs our fork) — same conclusion: compress V aggressively, keep K at q8_0
+
+**@Madreag** — [Optimized CUDA fork](https://github.com/Madreag/turbo3-cuda/tree/release/cuda-optimized), RTX 5090, Qwen3.5-27B Q6_K (2026-04-01):
+- turbo2 beats q8_0 by 5.4% at 32K decode (58.61 vs 55.60 t/s) at 7.53x compression. Same crossover pattern as our Metal findings: smaller cache = less bandwidth = faster at long context
+- turbo2 at 256K: 42.57 t/s on consumer 5090 where q8_0/f16 OOM. First 256K turbo2 data point on CUDA
+- Kernel optimizations yield +13-69% decode improvement at 32K across 4 GPUs vs base TurboQuant implementation
+- Confirms V compression dominance from asymmetric K/V matrix: V type varies PPL more than K type
+
+**@mudler (Ettore Di Giacinto)** — [APEX](https://github.com/mudler/apex-quant) + TurboQuant integration, [LocalAI](https://github.com/mudler/LocalAI) (44.7k stars) (2026-04-01):
+- Tested TurboQuant KV cache compression on top of APEX MoE weight quantization for Qwen3.5-35B-A3B at 8K context
+- +14% prompt processing speedup across all APEX tiers (I-Quality: 1,752 to 2,003 t/s, I-Compact: 1,714 to 1,959 t/s, Mini: 1,696 to 1,938 t/s)
+- Zero quality loss from TurboQuant KV on top of APEX weights, 4.6x KV cache compression
+- APEX Mini (12.2 GB) + TurboQuant = 35B MoE at 8K context on a 16GB consumer GPU
+- First external validation of TurboQuant KV compression as a complementary layer on top of advanced weight quantization for MoE models
+
+---
+
+## 8. Open Questions
 
 1. **Does the turbo2+BV advantage generalize to other MoE architectures?** Only tested on Qwen3.5 (GDN+attention hybrid, 16 KV layers out of 64). Models with different attention-to-expert ratios may behave differently.
 

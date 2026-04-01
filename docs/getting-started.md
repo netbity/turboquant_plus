@@ -118,6 +118,32 @@ See [Boundary V paper](papers/layer-aware-v-compression.md).
 
 Help the project by sharing your numbers. Here's how to generate comparable results.
 
+> **Important: Pick the right config before benchmarking.** Symmetric turbo (e.g., `-ctk turbo3 -ctv turbo3`) is catastrophic on some model families (Qwen2.5, Qwen3 MoE) with Q4 weight quantization. If you benchmark with the wrong config, your PPL numbers will be misleading -- you'll measure the damage from a bad config, not the actual compression quality. Start with asymmetric (`-ctk q8_0 -ctv turbo4`) unless you've validated symmetric on your specific model. See [Configuration Recommendations](turboquant-recommendations.md) for which configs are safe on which models.
+
+### Compression reference
+
+| Config | K bpv | V bpv | Avg bpv | KV compression vs fp16 |
+|--------|-------|-------|---------|------------------------|
+| fp16/fp16 | 16.0 | 16.0 | 16.0 | 1.0x (baseline) |
+| q8_0/q8_0 | 8.5 | 8.5 | 8.5 | 1.88x |
+| q8_0/turbo4 | 8.5 | 4.25 | 6.375 | 2.51x |
+| q8_0/turbo3 | 8.5 | 3.125 | 5.8125 | 2.75x |
+| q8_0/turbo2 | 8.5 | 2.125 | 5.3125 | 3.01x |
+| turbo4/turbo4 | 4.25 | 4.25 | 4.25 | 3.76x |
+| turbo3/turbo3 | 3.125 | 3.125 | 3.125 | 5.12x |
+
+Formula: `compression = 16 / avg_bpv`. For asymmetric: `avg_bpv = (k_bpv + v_bpv) / 2`.
+
+### How to measure actual KV cache size
+
+llama-server logs the KV cache allocation at startup. Look for lines like:
+
+```
+llama_kv_cache_init: Metal KV buffer size = 1234.56 MiB
+```
+
+Compare this across configs to see real memory savings. You can also use `llama-bench` output which reports KV cache size.
+
 ### Step 1: Download test data
 
 ```bash
