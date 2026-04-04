@@ -57,6 +57,8 @@ This table shows the largest compressed model each GPU has successfully run. It'
 | **M4 Max** | 64GB | 27B | ✅ | 85–99% | Community (Metal) |
 | **M2 Pro** | 32GB | 7B | ✅ | ~85% | Internal (Metal) |
 | **M1 Max** | 64GB | 27B | ✅ | 63% | Community (Metal) |
+| **2x V100** | 40GB | 27B | ✅ | **109%** (Config I faster than Q8_0) | Community (CUDA) |
+| **GTX 1080 Ti** | 11GB | 7B | ✅ | **106–111%** (Config I faster than Q8_0) | Internal (CUDA) |
 | **AMD RX 9070 XT** | 16GB | 1.5B | ✅ | **130%** (Config I faster than Q8_0) | Internal (HIP, Windows) |
 | **AMD RX 6600** | 8GB | 1.1B (CPU fallback) | ⚠️ | GPU matmul broken (not our bug) | Community (HIP) |
 
