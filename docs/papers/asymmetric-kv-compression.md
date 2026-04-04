@@ -294,6 +294,13 @@ These findings have been independently confirmed by multiple researchers:
 - Cross-architecture confirmation: Ada SM 89 and Blackwell SM 120 (CUDA) join Metal, Ampere, HIP, and Vulkan as backends where asymmetric outperforms symmetric
 - Independent tester on independent fork (spiritbuun, not TheTom), further reducing single-implementation bias
 
+**@AmesianX** — [Qwen3-14B Q4_K_M, DGX Spark GB10, deterministic task benchmark](https://github.com/AmesianX/TurboQuant/issues/11#issuecomment-4187156467) (2026-04-04):
+- Re-ran full 65-task benchmark at temp=0 (deterministic) following @TheTom's suggestion for proper KV cache fidelity isolation
+- Symmetric tbqp3/tbq3 vs f16/f16: **identical 20/65 (30.8%)** accuracy, 7:7 balanced divergence
+- Consistent with earlier temp=0.6 result (22/65 vs 22/65, 9:9 divergence)
+- Confirms: **no TBQ degradation on head_dim=128 models** — the 30.8% overall accuracy is a Qwen3-14B Q4_K_M model limitation, not a cache fidelity issue
+- Notable: symmetric turbo3 works on Qwen3-14B Q4_K_M (unlike Qwen2.5-7B Q4_K_M which is catastrophic). Model-specific sensitivity, not universal Qwen vulnerability
+
 **@nihilistau** — [Vilenkin basis spectral analysis, Phi-2 + turbo3](https://github.com/ggml-org/llama.cpp/discussions/20969#discussioncomment-16442465) (2026-04-03):
 - Independent harmonic analysis of K and V cache vectors in the Vilenkin (p-adic/mixed-radix) basis suggests a spectral explanation for why asymmetric compression works
 - K vectors appear to concentrate energy in a small number of universal spectral indices (6 indices at 100% universality across all positions). V vectors appear to spread energy diffusely across the entire spectrum (max 20% universality, no dominant modes)
