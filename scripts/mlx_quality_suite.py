@@ -181,21 +181,26 @@ def _make_turbo_cache(model: nn.Module, bits: int, asymmetric: bool,
     For hybrid models (e.g., Qwen3.5) that mix linear-attention (ArraysCache)
     and full-attention (KVCache) layers, only the KVCache layers are swapped
     to TurboKVCache. Non-KVCache layers keep their default cache type.
+
+    Boundary protection: first ``boundary`` and last ``boundary`` KVCache layers
+    stay at FP16 to avoid NaN from extreme V norms on boundary layers.
     """
     key_bits = 0 if asymmetric else None  # 0 = keep keys FP16
 
     # Get the model's default cache to discover per-layer types
     baseline = make_prompt_cache(model)
-    turbo_cache = []
-    for c in baseline:
-        if type(c).__name__ == "KVCache":
-            turbo_cache.append(TurboKVCache(
-                bits=bits, key_bits=key_bits,
-                min_compress_tokens=min_compress_tokens,
-            ))
-        else:
-            # Keep non-KV layers (ArraysCache, etc.) as-is
-            turbo_cache.append(c)
+    kv_indices = [i for i, c in enumerate(baseline) if type(c).__name__ == "KVCache"]
+    n_kv = len(kv_indices)
+    boundary = 2  # first/last 2 KV layers at FP16
+
+    turbo_cache = list(baseline)
+    for rank, idx in enumerate(kv_indices):
+        if rank < boundary or rank >= n_kv - boundary:
+            continue  # Keep boundary layers at FP16
+        turbo_cache[idx] = TurboKVCache(
+            bits=bits, key_bits=key_bits,
+            min_compress_tokens=min_compress_tokens,
+        )
     return turbo_cache
 
 
