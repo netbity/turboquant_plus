@@ -637,17 +637,33 @@ MLX decode matches llama.cpp. Prefill 37% slower (lazy graph vs pre-compiled).
 
 > **Note:** Future benchmark logs should record Apple Silicon power mode (Low / Auto / High) when known, as it can materially affect throughput.
 
+### Quick Start (MLX Python)
+
+```python
+import mlx_lm
+from mlx_lm.models.cache import make_turbo_cache
+
+model, tokenizer = mlx_lm.load("mlx-community/Qwen2.5-7B-Instruct-8bit")
+cache = make_turbo_cache(model, bits=4)  # K=FP16, V=turbo4, boundary 2+2
+response = mlx_lm.generate(model, tokenizer, prompt="Hello!", prompt_cache=cache)
+```
+
+Requires: [TheTom/mlx](https://github.com/TheTom/mlx/tree/feature/turboquant-plus) + [TheTom/mlx-lm](https://github.com/TheTom/mlx-lm/tree/feature/turboquant-kv)
+
 ### What's implemented
 - TurboQuant encode/decode using `mx.hadamard_transform` (MLX built-in)
 - Fused Metal kernels for encode, decode, and compressed-domain attention
-- TurboKVCache class compatible with mlx-lm inference
+- Tiled weighted V sum kernel for long-context scaling
+- TurboKVCache with `make_turbo_cache()` one-line setup
+- Native mlx-lm SDPA routing (detects TurboKVCache, routes to fused path)
 - All findings from llama.cpp TurboQuant+ papers applied and validated
 - Beta distribution centroids, boundary layers, asymmetric K/V, dual SRHT signs, NR0=2 multi-row amortization
 
 ### Status
-- **Experimental** — not yet production-ready
-- Decode speed gap (13%) is from Python dispatch overhead; closing it requires C++ primitives
-- Dense model testing in progress
+- **Experimental** — working end-to-end, not yet production-hardened
+- 7B dense: 93% baseline decode, +0.04% PPL, KLD 0.000305, NIAH 30/30
+- Fused V kernel eliminates double-storage (zero extra memory)
+- Tiled kernel for long-context scaling (pending clean benchmark)
 - Not yet submitted upstream
 
 See [MLX Swift port](https://github.com/ekryski/mlx-swift-lm/pull/7) for the Swift/iOS implementation (separate effort with Eric Kryski).
