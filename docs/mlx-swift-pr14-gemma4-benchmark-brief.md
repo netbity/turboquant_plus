@@ -121,7 +121,6 @@ No speed story is complete without checking whether the compressed path still re
 
 #### What is still missing
 
-- A matched Python `mlx-lm` quality comparison on the same model
 - Multi-run KLD averaging if you want a less noisy divergence estimate
 - 64K and 128K quality checks if the goal is to make stronger long-context claims
 
